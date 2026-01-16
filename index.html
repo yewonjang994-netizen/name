@@ -1,0 +1,847 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>이름 뽑기 수입 게임 (도감/오토/링크공유)</title>
+  <style>
+    :root{
+      --bg:#0b0f19; --card:#111a2e; --card2:#0c1326; --line:#223156; --line2:#2c3b66;
+      --txt:#e9eefc; --muted:rgba(233,238,252,.82);
+      --btn:#4b7bff;
+    }
+    *{ box-sizing:border-box; }
+    body{ margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--txt); }
+    .wrap{ max-width: 1020px; margin:0 auto; padding: 24px; }
+    .card{ background:var(--card); border:1px solid var(--line); border-radius: 18px; padding:18px; box-shadow:0 12px 40px rgba(0,0,0,.28); }
+    h1{ margin:0 0 12px; font-size:22px; letter-spacing:-0.3px; }
+    .row{ display:flex; gap:12px; flex-wrap:wrap; align-items:center; }
+    button{ border:0; border-radius:12px; padding:12px 14px; cursor:pointer; font-weight:900; }
+    .btn{ background:var(--btn); color:white; }
+    .btn:disabled{ opacity:.55; cursor:not-allowed; }
+    .btn2{ background:#1f2a46; color:var(--txt); border:1px solid var(--line2); }
+    .stat{ display:flex; gap:14px; flex-wrap:wrap; margin-top: 12px; }
+    .pill{ background:var(--card2); border:1px solid var(--line); border-radius:999px; padding:8px 12px; }
+    .grid{ display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-top:12px;}
+    .small{ opacity:.86; font-size:13px; line-height:1.5; color:var(--muted); }
+    .log{ margin-top:14px; padding:12px; border-radius:12px; background:var(--card2); border:1px solid var(--line); min-height: 120px; white-space: pre-wrap; }
+    @media (max-width:720px){ .grid{ grid-template-columns:1fr; } }
+
+    /* rarity colors */
+    .rare{ font-weight:1000; }
+    .common{ color:#cbd5e1 } .rareT{ color:#60a5fa } .epic{ color:#a78bfa }
+    .legend{ color:#fbbf24 } .myth{ color:#fb7185 }
+
+    /* draw animation area */
+    .stage{
+      margin-top:14px;
+      border-radius:16px;
+      background:linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.01));
+      border:1px solid var(--line);
+      padding:14px;
+      overflow:hidden;
+      position:relative;
+      min-height:120px;
+    }
+    .spinText{
+      font-weight:1000; font-size:18px;
+      opacity:.92;
+      transform: translateY(0);
+      transition: transform .18s ease, opacity .18s ease;
+    }
+    .resultBig{
+      margin-top:8px;
+      font-size:20px;
+      font-weight:1100;
+      letter-spacing:-0.4px;
+    }
+    .spark{
+      position:absolute; width:10px; height:10px;
+      border-radius:999px;
+      background:rgba(255,255,255,.9);
+      animation: pop 650ms ease-out forwards;
+      pointer-events:none;
+      opacity:.92;
+      filter:blur(.1px);
+    }
+    @keyframes pop{
+      0%{ transform: translate(0,0) scale(.9); opacity:.9; }
+      100%{ transform: translate(var(--dx), var(--dy)) scale(0); opacity:0; }
+    }
+
+    /* shake levels */
+    .shakeLegend{ animation: shakeLegend 700ms ease-in-out; }
+    .shakeMyth{ animation: shakeMyth 900ms ease-in-out; }
+    @keyframes shakeLegend{
+      0%,100%{ transform: translate(0,0); }
+      10%{ transform: translate(-10px, 6px); }
+      20%{ transform: translate(9px, -7px); }
+      30%{ transform: translate(-8px, -6px); }
+      40%{ transform: translate(8px, 8px); }
+      50%{ transform: translate(-6px, 7px); }
+      60%{ transform: translate(6px, -6px); }
+      70%{ transform: translate(-5px, 5px); }
+      80%{ transform: translate(5px, -4px); }
+      90%{ transform: translate(-3px, 3px); }
+    }
+    @keyframes shakeMyth{
+      0%,100%{ transform: translate(0,0); }
+      8%{ transform: translate(-14px, 9px); }
+      16%{ transform: translate(13px, -10px); }
+      24%{ transform: translate(-12px, -9px); }
+      32%{ transform: translate(12px, 12px); }
+      40%{ transform: translate(-10px, 11px); }
+      48%{ transform: translate(10px, -10px); }
+      56%{ transform: translate(-9px, 9px); }
+      64%{ transform: translate(9px, -8px); }
+      72%{ transform: translate(-7px, 7px); }
+      80%{ transform: translate(7px, -6px); }
+      88%{ transform: translate(-5px, 5px); }
+      96%{ transform: translate(3px, -3px); }
+    }
+
+    /* flash overlay */
+    .flash{
+      position:fixed; inset:0; background:white; opacity:0;
+      pointer-events:none;
+      transition: opacity .12s ease;
+    }
+    .flash.on1{ opacity:.45; }
+    .flash.on2{ opacity:.70; }
+
+    /* modal */
+    .modalBack{
+      position:fixed; inset:0; background:rgba(0,0,0,.55);
+      display:none; align-items:center; justify-content:center; padding:16px;
+      z-index:50;
+    }
+    .modalBack.show{ display:flex; }
+    .modal{
+      width:min(860px, 100%);
+      background:var(--card);
+      border:1px solid var(--line);
+      border-radius:18px;
+      padding:16px;
+      box-shadow:0 18px 60px rgba(0,0,0,.4);
+    }
+    .modalHead{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
+    .modalTitle{ font-weight:1100; font-size:16px; }
+    table{ width:100%; border-collapse:collapse; margin-top:10px; }
+    th,td{ text-align:left; padding:10px 8px; border-bottom:1px solid rgba(255,255,255,.08); font-size:13px; }
+    th{ opacity:.85; }
+
+    .badge{
+      display:inline-block; padding:4px 8px; border-radius:999px;
+      border:1px solid rgba(255,255,255,.15);
+      background:rgba(255,255,255,.06);
+      font-weight:1000;
+    }
+
+    /* login area */
+    .loginRow{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+    input{
+      background:var(--card2); border:1px solid var(--line); color:var(--txt);
+      border-radius:12px; padding:12px 12px; outline:none; font-weight:900;
+    }
+    input::placeholder{ color:rgba(233,238,252,.55); font-weight:900; }
+
+    /* dex grid */
+    .dexGrid{
+      margin-top:12px;
+      display:grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap:10px;
+    }
+    @media (max-width:840px){ .dexGrid{ grid-template-columns: repeat(3, 1fr);} }
+    @media (max-width:560px){ .dexGrid{ grid-template-columns: repeat(2, 1fr);} }
+    .dexCard{
+      background:var(--card2);
+      border:1px solid var(--line);
+      border-radius:14px;
+      padding:10px;
+      min-height:70px;
+      display:flex;
+      flex-direction:column;
+      justify-content:space-between;
+      gap:6px;
+    }
+    .dexName{ font-weight:1100; font-size:14px; letter-spacing:-0.2px; }
+    .dexMeta{ display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+    .dexBtn{
+      border-radius:10px;
+      padding:8px 10px;
+      font-weight:1100;
+      width:100%;
+    }
+    .locked{
+      opacity:.55;
+      filter: grayscale(.2);
+    }
+    .newTag{
+      font-size:12px;
+      font-weight:1100;
+      padding:3px 6px;
+      border-radius:999px;
+      border:1px solid rgba(255,255,255,.18);
+      background:rgba(255,255,255,.06);
+    }
+  </style>
+</head>
+<body>
+  <div class="flash" id="flash"></div>
+
+  <div class="wrap">
+    <div class="card">
+      <h1>🎲 이름 뽑기 수입 게임</h1>
+
+      <div class="loginRow">
+        <div class="pill">👤 로그인: <span id="userLabel">없음</span></div>
+        <input id="nameInput" maxlength="16" placeholder="닉네임(최대 16자)" />
+        <button class="btn2" id="loginBtn">로그인</button>
+        <button class="btn2" id="logoutBtn" disabled>로그아웃</button>
+        <span class="small">※ 저장은 각자 브라우저에 저장됨(서버 없음)</span>
+      </div>
+
+      <div class="row" style="margin-top:12px;">
+        <button class="btn" id="drawBtn" disabled>이름 뽑기 (비용 50)</button>
+        <button class="btn2" id="sellBtn" disabled>현재 이름 팔기</button>
+        <button class="btn2" id="dexBtn" disabled>📚 도감</button>
+        <button class="btn2" id="rankBtn" disabled>🏆 랭킹</button>
+        <button class="btn2" id="autoBtn" disabled>🖱️ 오토클릭: OFF</button>
+        <button class="btn2" id="resetBtn" disabled>리셋</button>
+      </div>
+
+      <div class="stat">
+        <div class="pill">💰 돈: <span id="money">0</span></div>
+        <div class="pill">⏱️ 5초당 수입: <span id="income">0</span></div>
+        <div class="pill">🏷️ 현재 이름: <span id="currentName">없음</span></div>
+        <div class="pill">⭐ 레어도: <span id="currentRarity">-</span></div>
+        <div class="pill">📈 총 수입 누적: <span id="totalEarned">0</span></div>
+        <div class="pill">📚 도감 보유: <span id="dexCount">0</span>/<span id="dexTotal">0</span></div>
+      </div>
+
+      <div class="grid">
+        <div class="card" style="background:var(--card2); border-color:var(--line);">
+          <div style="font-weight:1100; margin-bottom:8px;">확률 & 수입</div>
+          <div class="small" id="ratesBox"></div>
+          <div class="small" style="margin-top:8px;">
+            도감 보상: <span class="badge">새 이름 획득 +10원</span> (저장됨)
+          </div>
+        </div>
+        <div class="card" style="background:var(--card2); border-color:var(--line);">
+          <div style="font-weight:1100; margin-bottom:8px;">제약/오토</div>
+          <div class="small">
+            - 연속 뽑기 방지: 뽑기 진행 중에는 버튼이 잠김<br/>
+            - 오토클릭: <span class="badge">3초마다 1회</span> (돈 부족/진행중이면 자동 대기)<br/>
+            - 전설: 멋있게 / 신화: 더 멋있게(강한 흔들림+플래시)
+          </div>
+        </div>
+      </div>
+
+      <div class="stage" id="stage">
+        <div class="spinText" id="spinText">로그인 후 뽑기를 시작하세요.</div>
+        <div class="resultBig" id="resultBig"></div>
+      </div>
+
+      <div class="log" id="log"></div>
+    </div>
+  </div>
+
+  <!-- Ranking modal -->
+  <div class="modalBack" id="rankBack">
+    <div class="modal">
+      <div class="modalHead">
+        <div class="modalTitle">🏆 랭킹 (이 PC 내)</div>
+        <button class="btn2" id="rankClose">닫기</button>
+      </div>
+      <div class="small" style="margin-top:6px;">
+        기준: <span class="badge">총 수입 누적</span> 우선, 동점이면 <span class="badge">도감 수</span> 우선.
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>#</th><th>닉네임</th><th>총 수입</th><th>도감</th><th>현재 돈</th><th>최근 이름</th>
+          </tr>
+        </thead>
+        <tbody id="rankBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Dex modal -->
+  <div class="modalBack" id="dexBack">
+    <div class="modal">
+      <div class="modalHead">
+        <div class="modalTitle">📚 도감</div>
+        <button class="btn2" id="dexClose">닫기</button>
+      </div>
+      <div class="small" style="margin-top:6px;">
+        - 안 나온 이름은 <span class="badge">잠금</span>이라 클릭 불가<br/>
+        - 나온 이름은 클릭해서 정보 확인 가능<br/>
+        - “NEW”는 최근에 새로 얻은 이름(도감 열면 NEW 표시 제거)
+      </div>
+      <div class="dexGrid" id="dexGrid"></div>
+    </div>
+  </div>
+
+<script>
+(() => {
+  // ===== 밸런스 =====
+  const DRAW_COST = 50;
+  const START_MONEY = 100;
+  const DEX_BONUS = 10;          // 새 이름 얻을 때 +10원
+  const AUTO_MS = 3000;          // 오토클릭 3초
+  const INCOME_MS = 5000;        // 5초당 수입
+
+  const RARITIES = [
+    { key:"COMMON", label:"일반", chance:70,   income:  5, sell: 15, cls:"common", tier:1 },
+    { key:"RARE",   label:"레어", chance:20,   income: 18, sell: 45, cls:"rareT", tier:2 },
+    { key:"EPIC",   label:"에픽", chance: 8,   income: 45, sell:120, cls:"epic",  tier:3 },
+    { key:"LEGEND", label:"전설", chance: 1.8, income:130, sell:350, cls:"legend",tier:4 },
+    { key:"MYTH",   label:"신화", chance: 0.2, income:350, sell:900, cls:"myth",  tier:5 },
+  ];
+
+  const NAME_POOL = {
+    COMMON: ["민준","서준","지민","지훈","현우","도윤","서연","하윤","지아","예준","유진","수빈"],
+    RARE:   ["루카","아루이","카온","리나","백연","이화","루넷","노르","멜라","에쉬"],
+    EPIC:   ["아틀란티스의 후예","검은 항해자","여명의 인도자","청록의 재단사","황혼의 서기관"],
+    LEGEND: ["이름 없는 왕","심연을 걷는 자","시간의 파수꾼","별빛의 맹세"],
+    MYTH:   ["0번째 인간","현실을 편집하는 자","세계선의 관리자"],
+  };
+
+  // ===== 도감 전체 목록(고정 순서) =====
+  const DEX_ALL = (() => {
+    const arr = [];
+    for (const r of RARITIES){
+      const names = NAME_POOL[r.key] || [];
+      for (const n of names){
+        arr.push({ name:n, rarityKey:r.key });
+      }
+    }
+    return arr;
+  })();
+
+  // ===== 저장 키 =====
+  const KEY_USER = "ng_user";
+  const KEY_SAVE_PREFIX = "ng_save_";
+  const KEY_RANK = "ng_rankboard";
+
+  // ===== 상태 =====
+  let user = null;
+  let state = null;
+  let incomeTimer = null;
+  let autoTimer = null;
+  let autoOn = false;
+  let drawLock = false; // 연속 뽑기 방지(진행 중 잠금)
+
+  // ===== DOM =====
+  const $ = (id) => document.getElementById(id);
+  const fmt = (n) => Math.floor(n).toLocaleString("ko-KR");
+
+  function escapeHtml(str){
+    return String(str)
+      .replaceAll("&","&amp;").replaceAll("<","&lt;")
+      .replaceAll(">","&gt;").replaceAll('"',"&quot;")
+      .replaceAll("'","&#039;");
+  }
+
+  function log(msg){
+    const el = $("log");
+    const now = new Date();
+    const stamp = now.toLocaleTimeString("ko-KR",{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+    el.textContent = `[${stamp}] ${msg}\n` + el.textContent;
+  }
+
+  // ===== 랜덤 =====
+  function pickRarity(){
+    const r = Math.random() * 100;
+    let acc = 0;
+    for (const it of RARITIES){
+      acc += it.chance;
+      if (r <= acc) return it;
+    }
+    return RARITIES[RARITIES.length - 1];
+  }
+  function pickNameByRarity(key){
+    const arr = NAME_POOL[key] || [];
+    return arr.length ? arr[Math.floor(Math.random()*arr.length)] : "(이름 없음)";
+  }
+
+  // ===== 이펙트 =====
+  function spawnSparks(count=16){
+    const stage = $("stage");
+    const rect = stage.getBoundingClientRect();
+    for (let i=0;i<count;i++){
+      const s = document.createElement("div");
+      s.className = "spark";
+      const x = Math.random()*(rect.width-10);
+      const y = 20 + Math.random()*(rect.height-40);
+      const dx = (-1 + Math.random()*2) * (60 + Math.random()*140);
+      const dy = (-1 + Math.random()*2) * (40 + Math.random()*160);
+      s.style.left = x + "px";
+      s.style.top  = y + "px";
+      s.style.setProperty("--dx", dx+"px");
+      s.style.setProperty("--dy", dy+"px");
+      stage.appendChild(s);
+      setTimeout(()=>s.remove(), 700);
+    }
+  }
+
+  function flash(level){ // 1 = legend, 2 = myth
+    const f = $("flash");
+    f.classList.remove("on1","on2");
+    f.classList.add(level === 2 ? "on2" : "on1");
+    setTimeout(()=>f.classList.remove("on1","on2"), 160);
+  }
+
+  function shake(level){ // 1 legend / 2 myth
+    document.body.classList.remove("shakeLegend","shakeMyth");
+    void document.body.offsetWidth;
+    document.body.classList.add(level === 2 ? "shakeMyth" : "shakeLegend");
+    setTimeout(()=>document.body.classList.remove("shakeLegend","shakeMyth"), level === 2 ? 950 : 750);
+  }
+
+  async function drawAnimation(){
+    const spin = $("spinText");
+    const res = $("resultBig");
+    res.textContent = "";
+    const words = ["이름을 고르는 중…","운명을 섞는 중…","레어도를 계산 중…","도감 확인 중…","거의 됐다!"];
+    for (let i=0;i<10;i++){
+      spin.textContent = words[i % words.length];
+      spin.style.transform = `translateY(${(i%2===0? -3:3)}px)`;
+      spin.style.opacity = String(0.75 + Math.random()*0.25);
+      spawnSparks(4);
+      await new Promise(r=>setTimeout(r, 85));
+    }
+    spin.style.transform = "translateY(0)";
+    spin.style.opacity = "1";
+  }
+
+  // ===== 저장 =====
+  function saveKeyFor(u){ return KEY_SAVE_PREFIX + u; }
+
+  function defaultState(){
+    return {
+      money: START_MONEY,
+      income: 0,
+      current: null, // {name, rarityKey}
+      totalEarned: 0,
+
+      // 도감: 발견한 이름 set (배열로 저장)
+      dexFound: [],
+      // NEW 표시용: 최근 새로 얻은 이름들(도감 열면 비움)
+      dexNew: [],
+
+      lastName: "",
+      lastRarityKey: "",
+      lastSavedAt: Date.now(),
+    };
+  }
+
+  function loadUserState(u){
+    const raw = localStorage.getItem(saveKeyFor(u));
+    if (!raw) return defaultState();
+    try{
+      const parsed = JSON.parse(raw);
+      return { ...defaultState(), ...parsed };
+    }catch{
+      return defaultState();
+    }
+  }
+
+  function saveUserState(){
+    if (!user || !state) return;
+    state.lastSavedAt = Date.now();
+    localStorage.setItem(saveKeyFor(user), JSON.stringify(state));
+    updateRankboard();
+  }
+
+  // ===== 랭킹 (로컬) =====
+  function loadRankboard(){
+    const raw = localStorage.getItem(KEY_RANK);
+    if (!raw) return [];
+    try{ return JSON.parse(raw) || []; }catch{ return []; }
+  }
+
+  function updateRankboard(){
+    const board = loadRankboard();
+    const idx = board.findIndex(x => x.user === user);
+
+    const dexCount = new Set(state.dexFound).size;
+
+    const entry = {
+      user,
+      totalEarned: state.totalEarned,
+      dexCount,
+      money: state.money,
+      lastName: state.lastName || "",
+      updatedAt: Date.now(),
+    };
+
+    if (idx >= 0) board[idx] = entry;
+    else board.push(entry);
+
+    board.sort((a,b)=>{
+      if (b.totalEarned !== a.totalEarned) return b.totalEarned - a.totalEarned;
+      if (b.dexCount !== a.dexCount) return b.dexCount - a.dexCount;
+      return b.money - a.money;
+    });
+
+    localStorage.setItem(KEY_RANK, JSON.stringify(board.slice(0,100)));
+  }
+
+  function openRanking(){
+    const board = loadRankboard();
+    const body = $("rankBody");
+    body.innerHTML = "";
+    const top = board.slice(0, 25);
+    top.forEach((e, i)=>{
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${i+1}</td>
+        <td><span class="badge">${escapeHtml(e.user)}</span></td>
+        <td>${fmt(e.totalEarned)}</td>
+        <td>${e.dexCount}</td>
+        <td>${fmt(e.money)}</td>
+        <td>${escapeHtml(e.lastName ? `"${e.lastName}"` : "-")}</td>
+      `;
+      body.appendChild(tr);
+    });
+    $("rankBack").classList.add("show");
+  }
+  function closeRanking(){ $("rankBack").classList.remove("show"); }
+
+  // ===== 도감 UI =====
+  function openDex(){
+    renderDexGrid();
+    // 도감 열면 NEW 표시 제거(저장)
+    state.dexNew = [];
+    saveUserState();
+    $("dexBack").classList.add("show");
+  }
+  function closeDex(){ $("dexBack").classList.remove("show"); }
+
+  function renderDexGrid(){
+    const grid = $("dexGrid");
+    grid.innerHTML = "";
+
+    const foundSet = new Set(state.dexFound);
+    const newSet = new Set(state.dexNew);
+
+    DEX_ALL.forEach((item) => {
+      const rarity = RARITIES.find(r=>r.key===item.rarityKey);
+      const isFound = foundSet.has(item.name);
+      const isNew = newSet.has(item.name);
+
+      const card = document.createElement("div");
+      card.className = "dexCard" + (isFound ? "" : " locked");
+
+      const nameLine = document.createElement("div");
+      nameLine.className = "dexName";
+      nameLine.innerHTML = isFound
+        ? `<span class="rare ${rarity.cls}">${escapeHtml(item.name)}</span>`
+        : `🔒 잠금`;
+
+      const meta = document.createElement("div");
+      meta.className = "dexMeta";
+      meta.innerHTML = `
+        <span class="badge">${rarity.label}</span>
+        ${isNew ? `<span class="newTag">NEW</span>` : ``}
+      `;
+
+      const btn = document.createElement("button");
+      btn.className = "btn2 dexBtn";
+      btn.textContent = isFound ? "열기" : "잠김";
+      btn.disabled = !isFound;
+
+      btn.addEventListener("click", ()=>{
+        // “열기”는 간단 정보 팝업(나중에 확장 가능)
+        alert(`[${rarity.label}] ${item.name}\n\n도감에서 이미 획득한 이름입니다.`);
+      });
+
+      card.appendChild(nameLine);
+      card.appendChild(meta);
+      card.appendChild(btn);
+      grid.appendChild(card);
+    });
+
+    // 상단 카운트 갱신
+    $("dexCount").textContent = String(foundSet.size);
+    $("dexTotal").textContent = String(DEX_ALL.length);
+  }
+
+  // ===== UI 렌더 =====
+  function renderRates(){
+    $("ratesBox").innerHTML = RARITIES.map(r =>
+      `- <span class="rare ${r.cls}">${r.label}</span>: ${r.chance}% · 5초당 +${r.income} · 판매가 ${r.sell}`
+    ).join("<br/>");
+  }
+
+  function setCurrentDisplay(){
+    if (!state.current){
+      $("currentName").textContent = "없음";
+      $("currentRarity").textContent = "-";
+      $("income").textContent = "0";
+      $("sellBtn").disabled = true;
+      return;
+    }
+    const rarity = RARITIES.find(r=>r.key===state.current.rarityKey);
+    $("currentName").textContent = state.current.name;
+    $("currentRarity").innerHTML = `<span class="rare ${rarity.cls}">${rarity.label}</span>`;
+    $("income").textContent = fmt(state.income);
+    $("sellBtn").disabled = false;
+  }
+
+  function render(){
+    $("money").textContent = fmt(state.money);
+    $("income").textContent = fmt(state.income);
+    $("totalEarned").textContent = fmt(state.totalEarned);
+
+    const foundCount = new Set(state.dexFound).size;
+    $("dexCount").textContent = String(foundCount);
+    $("dexTotal").textContent = String(DEX_ALL.length);
+
+    // draw 버튼은 돈/잠금 상태에 따라
+    $("drawBtn").disabled = drawLock || (state.money < DRAW_COST);
+  }
+
+  function setLoggedInUI(on){
+    $("userLabel").textContent = on ? user : "없음";
+    $("drawBtn").disabled = !on || drawLock || (state && state.money < DRAW_COST);
+    $("sellBtn").disabled = !on || !state?.current;
+    $("dexBtn").disabled = !on;
+    $("rankBtn").disabled = !on;
+    $("autoBtn").disabled = !on;
+    $("resetBtn").disabled = !on;
+    $("logoutBtn").disabled = !on;
+    $("loginBtn").disabled = on;
+    $("nameInput").disabled = on;
+
+    $("spinText").textContent = on ? "준비 완료! 뽑기를 눌러 시작." : "로그인 후 뽑기를 시작하세요.";
+    $("resultBig").textContent = "";
+  }
+
+  // ===== 루프 =====
+  function startIncomeLoop(){
+    if (incomeTimer) clearInterval(incomeTimer);
+    incomeTimer = setInterval(()=>{
+      if (!user || !state) return;
+      if (state.income > 0){
+        state.money += state.income;
+        state.totalEarned += state.income;
+        render();
+        saveUserState();
+      }
+    }, INCOME_MS);
+  }
+
+  function startAutoLoop(){
+    if (autoTimer) clearInterval(autoTimer);
+    autoTimer = setInterval(()=>{
+      if (!autoOn) return;
+      if (!user || !state) return;
+      if (drawLock) return;
+      if (state.money < DRAW_COST) return;
+      doDraw(); // 조건 통과하면 자동 뽑기
+    }, AUTO_MS);
+  }
+
+  function setAuto(on){
+    autoOn = on;
+    $("autoBtn").textContent = `🖱️ 오토클릭: ${autoOn ? "ON" : "OFF"}`;
+    log(autoOn ? "오토클릭 ON (3초마다)" : "오토클릭 OFF");
+  }
+
+  // ===== 뽑기/판매 =====
+  async function doDraw(){
+    if (!user || !state) return;
+    if (drawLock) return;
+    if (state.money < DRAW_COST) return;
+
+    drawLock = true;     // 연속 뽑기 방지
+    render();
+
+    state.money -= DRAW_COST;
+    render();
+    saveUserState();
+
+    await drawAnimation();
+
+    const rarity = pickRarity();
+    const name = pickNameByRarity(rarity.key);
+
+    // 적용
+    state.current = { name, rarityKey: rarity.key };
+    state.income = rarity.income;
+    state.lastName = name;
+    state.lastRarityKey = rarity.key;
+
+    // 도감 체크: 새 이름이면 +10원 + NEW 표시 + 저장
+    const foundSet = new Set(state.dexFound);
+    if (!foundSet.has(name)){
+      foundSet.add(name);
+      state.dexFound = Array.from(foundSet);
+
+      const newSet = new Set(state.dexNew);
+      newSet.add(name);
+      state.dexNew = Array.from(newSet);
+
+      state.money += DEX_BONUS;
+      log(`📚 도감 신규! "${name}" (+${DEX_BONUS}원)`);
+    }
+
+    setCurrentDisplay();
+
+    // 결과 출력 + 이펙트 분리
+    $("spinText").textContent = "결과!";
+    $("resultBig").innerHTML = `<span class="rare ${rarity.cls}">[${rarity.label}]</span> "${escapeHtml(name)}" · 5초당 +${fmt(rarity.income)}`;
+
+    if (rarity.key === "MYTH"){
+      spawnSparks(44);
+      flash(2);
+      shake(2);
+      log(`🌌 신화 획득! [${rarity.label}] "${name}"`);
+    } else if (rarity.key === "LEGEND"){
+      spawnSparks(30);
+      flash(1);
+      shake(1);
+      log(`✨ 전설 획득! [${rarity.label}] "${name}"`);
+    } else {
+      spawnSparks(16);
+      log(`뽑기 성공! [${rarity.label}] "${name}"`);
+    }
+
+    render();
+    saveUserState();
+
+    // 잠금 해제(짧은 텀을 둬서 “연속 뽑기 느낌” 방지)
+    setTimeout(()=>{
+      drawLock = false;
+      render();
+    }, 450);
+  }
+
+  function doSell(){
+    if (!user || !state?.current) return;
+    const rarity = RARITIES.find(r=>r.key===state.current.rarityKey);
+    const gain = rarity?.sell ?? 0;
+    const soldName = state.current.name;
+
+    state.money += gain;
+    state.current = null;
+    state.income = 0;
+
+    setCurrentDisplay();
+    render();
+    log(`판매 완료: "${soldName}" ( +${gain} )`);
+    saveUserState();
+  }
+
+  function doReset(){
+    if (!user) return;
+    if (!confirm("정말 리셋할까요? (현재 유저 데이터가 초기화됨)")) return;
+
+    state = defaultState();
+    localStorage.setItem(saveKeyFor(user), JSON.stringify(state));
+    drawLock = false;
+    setAuto(false);
+
+    setCurrentDisplay();
+    render();
+    renderDexGrid();
+    log("리셋 완료!");
+    saveUserState();
+  }
+
+  // ===== 로그인 =====
+  function normalizeName(s){
+    return (s || "").trim().replace(/\s+/g," ").slice(0,16);
+  }
+
+  function login(name){
+    const n = normalizeName(name);
+    if (!n){
+      alert("닉네임을 입력해줘!");
+      return;
+    }
+    user = n;
+    localStorage.setItem(KEY_USER, user);
+    state = loadUserState(user);
+
+    drawLock = false;
+    setAuto(false);
+
+    setCurrentDisplay();
+    render();
+    setLoggedInUI(true);
+    log(`로그인: ${user}`);
+
+    startIncomeLoop();
+    startAutoLoop();
+    saveUserState();
+  }
+
+  function logout(){
+    if (!user) return;
+    saveUserState();
+    setAuto(false);
+
+    user = null;
+    state = null;
+    localStorage.removeItem(KEY_USER);
+
+    setLoggedInUI(false);
+    $("money").textContent = "0";
+    $("income").textContent = "0";
+    $("totalEarned").textContent = "0";
+    $("dexCount").textContent = "0";
+    $("dexTotal").textContent = String(DEX_ALL.length);
+
+    log("로그아웃됨.");
+  }
+
+  // ===== 이벤트 =====
+  $("loginBtn").addEventListener("click", ()=> login($("nameInput").value));
+  $("nameInput").addEventListener("keydown", (e)=>{ if (e.key === "Enter") login($("nameInput").value); });
+  $("logoutBtn").addEventListener("click", logout);
+
+  $("drawBtn").addEventListener("click", doDraw);
+  $("sellBtn").addEventListener("click", doSell);
+  $("resetBtn").addEventListener("click", doReset);
+
+  $("rankBtn").addEventListener("click", openRanking);
+  $("rankClose").addEventListener("click", closeRanking);
+  $("rankBack").addEventListener("click", (e)=>{ if (e.target.id === "rankBack") closeRanking(); });
+
+  $("dexBtn").addEventListener("click", openDex);
+  $("dexClose").addEventListener("click", closeDex);
+  $("dexBack").addEventListener("click", (e)=>{ if (e.target.id === "dexBack") closeDex(); });
+
+  $("autoBtn").addEventListener("click", ()=>{
+    if (!user) return;
+    setAuto(!autoOn);
+  });
+
+  // ===== 초기화 =====
+  renderRates();
+  $("dexTotal").textContent = String(DEX_ALL.length);
+
+  const remembered = localStorage.getItem(KEY_USER);
+  if (remembered){
+    user = remembered;
+    state = loadUserState(user);
+    setCurrentDisplay();
+    render();
+    setLoggedInUI(true);
+    log(`자동 로그인: ${user}`);
+    startIncomeLoop();
+    startAutoLoop();
+    saveUserState();
+  } else {
+    setLoggedInUI(false);
+    $("dexCount").textContent = "0";
+  }
+})();
+</script>
+</body>
+</html>
