@@ -3,12 +3,13 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>이름 뽑기 수입 게임 (도감/오토/링크공유)</title>
+  <title>이름 뽑기 수입 게임 (도감/온라인랭킹)</title>
   <style>
     :root{
       --bg:#0b0f19; --card:#111a2e; --card2:#0c1326; --line:#223156; --line2:#2c3b66;
       --txt:#e9eefc; --muted:rgba(233,238,252,.82);
       --btn:#4b7bff;
+      --ok:#22c55e; --off:#94a3b8;
     }
     *{ box-sizing:border-box; }
     body{ margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--txt); }
@@ -105,6 +106,7 @@
       position:fixed; inset:0; background:white; opacity:0;
       pointer-events:none;
       transition: opacity .12s ease;
+      z-index:100;
     }
     .flash.on1{ opacity:.45; }
     .flash.on2{ opacity:.70; }
@@ -116,16 +118,22 @@
       z-index:50;
     }
     .modalBack.show{ display:flex; }
+
+    /* ✅ 여기서 “모달 자체가 화면에 맞게” + “내부 스크롤” */
     .modal{
       width:min(860px, 100%);
+      max-height: 85vh;          /* 화면보다 크면 */
+      overflow:auto;             /* 모달 내부 스크롤 */
       background:var(--card);
       border:1px solid var(--line);
       border-radius:18px;
       padding:16px;
       box-shadow:0 18px 60px rgba(0,0,0,.4);
     }
-    .modalHead{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
+
+    .modalHead{ display:flex; align-items:center; justify-content:space-between; gap:10px; position:sticky; top:0; background:var(--card); padding-bottom:10px; }
     .modalTitle{ font-weight:1100; font-size:16px; }
+
     table{ width:100%; border-collapse:collapse; margin-top:10px; }
     th,td{ text-align:left; padding:10px 8px; border-bottom:1px solid rgba(255,255,255,.08); font-size:13px; }
     th{ opacity:.85; }
@@ -185,6 +193,15 @@
       border:1px solid rgba(255,255,255,.18);
       background:rgba(255,255,255,.06);
     }
+
+    /* online dot */
+    .dot{
+      width:10px; height:10px; border-radius:999px; display:inline-block; margin-right:8px;
+      border:1px solid rgba(255,255,255,.25);
+      vertical-align:middle;
+    }
+    .dot.on{ background: var(--ok); }
+    .dot.off{ background: var(--off); }
   </style>
 </head>
 <body>
@@ -199,14 +216,14 @@
         <input id="nameInput" maxlength="16" placeholder="닉네임(최대 16자)" />
         <button class="btn2" id="loginBtn">로그인</button>
         <button class="btn2" id="logoutBtn" disabled>로그아웃</button>
-        <span class="small">※ 저장은 각자 브라우저에 저장됨(서버 없음)</span>
+        <span class="small">※ 온라인 랭킹은 Firebase(서버)로 공유됨</span>
       </div>
 
       <div class="row" style="margin-top:12px;">
         <button class="btn" id="drawBtn" disabled>이름 뽑기 (비용 50)</button>
         <button class="btn2" id="sellBtn" disabled>현재 이름 팔기</button>
         <button class="btn2" id="dexBtn" disabled>📚 도감</button>
-        <button class="btn2" id="rankBtn" disabled>🏆 랭킹</button>
+        <button class="btn2" id="rankBtn" disabled>🏆 온라인 랭킹</button>
         <button class="btn2" id="autoBtn" disabled>🖱️ 오토클릭: OFF</button>
         <button class="btn2" id="resetBtn" disabled>리셋</button>
       </div>
@@ -231,8 +248,8 @@
         <div class="card" style="background:var(--card2); border-color:var(--line);">
           <div style="font-weight:1100; margin-bottom:8px;">제약/오토</div>
           <div class="small">
-            - 연속 뽑기 방지: 뽑기 진행 중에는 버튼이 잠김<br/>
-            - 오토클릭: <span class="badge">3초마다 1회</span> (돈 부족/진행중이면 자동 대기)<br/>
+            - 연속 뽑기 방지: 뽑기 진행 중 버튼 잠김<br/>
+            - 오토클릭: <span class="badge">3초마다 1회</span><br/>
             - 전설: 멋있게 / 신화: 더 멋있게(강한 흔들림+플래시)
           </div>
         </div>
@@ -251,20 +268,22 @@
   <div class="modalBack" id="rankBack">
     <div class="modal">
       <div class="modalHead">
-        <div class="modalTitle">🏆 랭킹 (이 PC 내)</div>
+        <div class="modalTitle">🏆 온라인 랭킹 (상위 30)</div>
         <button class="btn2" id="rankClose">닫기</button>
       </div>
       <div class="small" style="margin-top:6px;">
-        기준: <span class="badge">총 수입 누적</span> 우선, 동점이면 <span class="badge">도감 수</span> 우선.
+        기준: <span class="badge">총 수입</span> 우선, 동점이면 <span class="badge">도감 수</span> 우선.
+        <br/>● 초록 = 온라인 / ● 회색 = 오프라인
       </div>
       <table>
         <thead>
           <tr>
-            <th>#</th><th>닉네임</th><th>총 수입</th><th>도감</th><th>현재 돈</th><th>최근 이름</th>
+            <th>#</th><th>상태</th><th>닉네임</th><th>총 수입</th><th>도감</th><th>현재 돈</th><th>최근 이름</th>
           </tr>
         </thead>
         <tbody id="rankBody"></tbody>
       </table>
+      <div class="small" id="rankHint" style="margin-top:10px;"></div>
     </div>
   </div>
 
@@ -277,21 +296,43 @@
       </div>
       <div class="small" style="margin-top:6px;">
         - 안 나온 이름은 <span class="badge">잠금</span>이라 클릭 불가<br/>
-        - 나온 이름은 클릭해서 정보 확인 가능<br/>
-        - “NEW”는 최근에 새로 얻은 이름(도감 열면 NEW 표시 제거)
+        - 나온 이름은 클릭해서 확인 가능<br/>
+        - “NEW”는 최근 신규 획득(도감 열면 NEW 제거)
       </div>
       <div class="dexGrid" id="dexGrid"></div>
     </div>
   </div>
 
-<script>
-(() => {
+<!-- Firebase (모듈) -->
+<script type="module">
+  // ===== Firebase SDK (v10.x modular) =====
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+  import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+  import {
+    getFirestore, doc, setDoc, serverTimestamp, getDoc,
+    query, collection, orderBy, limit, getDocs
+  } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+  import {
+    getDatabase, ref, onValue, set, onDisconnect
+  } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+
+const firebaseConfig = {
+  apiKey : "AIzaSyA43QjJvd3v_wG77MJyycT3ruuLy42-uZU" , 
+  authDomain : "nyam-dbf7d.firebaseapp.com" , 
+  databaseURL: "https://nyam-dbf7d-default-rtdb.firebaseio.com",
+  projectId: "nyam-dbf7d",
+  storageBucket: "nyam-dbf7d.firebasestorage.app",
+  messagingSenderId: "724044795848",
+  appId: "1:724044795848:web:2601075e917b5c59bebafd",
+  measurementId: "G-5088K6G67N"
+};
+
   // ===== 밸런스 =====
   const DRAW_COST = 50;
   const START_MONEY = 100;
-  const DEX_BONUS = 10;          // 새 이름 얻을 때 +10원
-  const AUTO_MS = 3000;          // 오토클릭 3초
-  const INCOME_MS = 5000;        // 5초당 수입
+  const DEX_BONUS = 10;
+  const AUTO_MS = 3000;
+  const INCOME_MS = 5000;
 
   const RARITIES = [
     { key:"COMMON", label:"일반", chance:70,   income:  5, sell: 15, cls:"common", tier:1 },
@@ -309,30 +350,32 @@
     MYTH:   ["0번째 인간","현실을 편집하는 자","세계선의 관리자"],
   };
 
-  // ===== 도감 전체 목록(고정 순서) =====
   const DEX_ALL = (() => {
     const arr = [];
     for (const r of RARITIES){
-      const names = NAME_POOL[r.key] || [];
-      for (const n of names){
+      for (const n of (NAME_POOL[r.key] || [])){
         arr.push({ name:n, rarityKey:r.key });
       }
     }
     return arr;
   })();
 
-  // ===== 저장 키 =====
+  // ===== 로컬 저장 =====
   const KEY_USER = "ng_user";
   const KEY_SAVE_PREFIX = "ng_save_";
-  const KEY_RANK = "ng_rankboard";
 
-  // ===== 상태 =====
-  let user = null;
+  let userName = null;
   let state = null;
   let incomeTimer = null;
   let autoTimer = null;
   let autoOn = false;
-  let drawLock = false; // 연속 뽑기 방지(진행 중 잠금)
+  let drawLock = false;
+
+  // ===== Firebase 전역 =====
+  let app, auth, db, rtdb;
+  let uid = null;
+  let presenceUnsub = null;
+  const onlineMap = new Map(); // name -> boolean
 
   // ===== DOM =====
   const $ = (id) => document.getElementById(id);
@@ -350,21 +393,6 @@
     const now = new Date();
     const stamp = now.toLocaleTimeString("ko-KR",{hour:'2-digit',minute:'2-digit',second:'2-digit'});
     el.textContent = `[${stamp}] ${msg}\n` + el.textContent;
-  }
-
-  // ===== 랜덤 =====
-  function pickRarity(){
-    const r = Math.random() * 100;
-    let acc = 0;
-    for (const it of RARITIES){
-      acc += it.chance;
-      if (r <= acc) return it;
-    }
-    return RARITIES[RARITIES.length - 1];
-  }
-  function pickNameByRarity(key){
-    const arr = NAME_POOL[key] || [];
-    return arr.length ? arr[Math.floor(Math.random()*arr.length)] : "(이름 없음)";
   }
 
   // ===== 이펙트 =====
@@ -386,21 +414,18 @@
       setTimeout(()=>s.remove(), 700);
     }
   }
-
-  function flash(level){ // 1 = legend, 2 = myth
+  function flash(level){
     const f = $("flash");
     f.classList.remove("on1","on2");
     f.classList.add(level === 2 ? "on2" : "on1");
     setTimeout(()=>f.classList.remove("on1","on2"), 160);
   }
-
-  function shake(level){ // 1 legend / 2 myth
+  function shake(level){
     document.body.classList.remove("shakeLegend","shakeMyth");
     void document.body.offsetWidth;
     document.body.classList.add(level === 2 ? "shakeMyth" : "shakeLegend");
     setTimeout(()=>document.body.classList.remove("shakeLegend","shakeMyth"), level === 2 ? 950 : 750);
   }
-
   async function drawAnimation(){
     const spin = $("spinText");
     const res = $("resultBig");
@@ -417,27 +442,36 @@
     spin.style.opacity = "1";
   }
 
-  // ===== 저장 =====
-  function saveKeyFor(u){ return KEY_SAVE_PREFIX + u; }
+  // ===== 랜덤 =====
+  function pickRarity(){
+    const r = Math.random() * 100;
+    let acc = 0;
+    for (const it of RARITIES){
+      acc += it.chance;
+      if (r <= acc) return it;
+    }
+    return RARITIES[RARITIES.length - 1];
+  }
+  function pickNameByRarity(key){
+    const arr = NAME_POOL[key] || [];
+    return arr.length ? arr[Math.floor(Math.random()*arr.length)] : "(이름 없음)";
+  }
 
+  // ===== 로컬 저장 =====
+  function saveKeyFor(u){ return KEY_SAVE_PREFIX + u; }
   function defaultState(){
     return {
       money: START_MONEY,
       income: 0,
       current: null, // {name, rarityKey}
       totalEarned: 0,
-
-      // 도감: 발견한 이름 set (배열로 저장)
       dexFound: [],
-      // NEW 표시용: 최근 새로 얻은 이름들(도감 열면 비움)
       dexNew: [],
-
       lastName: "",
       lastRarityKey: "",
       lastSavedAt: Date.now(),
     };
   }
-
   function loadUserState(u){
     const raw = localStorage.getItem(saveKeyFor(u));
     if (!raw) return defaultState();
@@ -448,83 +482,128 @@
       return defaultState();
     }
   }
-
   function saveUserState(){
-    if (!user || !state) return;
+    if (!userName || !state) return;
     state.lastSavedAt = Date.now();
-    localStorage.setItem(saveKeyFor(user), JSON.stringify(state));
-    updateRankboard();
+    localStorage.setItem(saveKeyFor(userName), JSON.stringify(state));
   }
 
-  // ===== 랭킹 (로컬) =====
-  function loadRankboard(){
-    const raw = localStorage.getItem(KEY_RANK);
-    if (!raw) return [];
-    try{ return JSON.parse(raw) || []; }catch{ return []; }
+  // ===== Firebase: init/auth/presence/leaderboard =====
+  function safeKey(s){
+    // Firestore doc id에 위험한 문자 제거(슬래시 등)
+    return String(s).trim().slice(0,16).replaceAll("/", "_");
   }
 
-  function updateRankboard(){
-    const board = loadRankboard();
-    const idx = board.findIndex(x => x.user === user);
+  async function initFirebase(){
+    // config 비어있으면 온라인 기능 안 됨
+    if (!firebaseConfig || !firebaseConfig.apiKey){
+      log("⚠️ firebaseConfig가 비어있어서 온라인 랭킹이 비활성화됨.");
+      return;
+    }
+    app = initializeApp(firebaseConfig);
+    auth = getAuth(app);
+    db = getFirestore(app);
+    rtdb = getDatabase(app);
 
+    await signInAnonymously(auth);
+
+    onAuthStateChanged(auth, (u)=>{
+      if (!u) return;
+      uid = u.uid;
+      // 로그인 후 이름이 정해지면 presence 등록할 것(아래 login()에서)
+    });
+  }
+
+  async function setPresenceOnline(name){
+    if (!rtdb || !uid) return;
+    const myRef = ref(rtdb, `presence/${safeKey(name)}`);
+    await set(myRef, { online:true, ts: Date.now() });
+    onDisconnect(myRef).set({ online:false, ts: Date.now() });
+  }
+
+  function watchPresence(){
+    if (!rtdb) return;
+    const allRef = ref(rtdb, "presence");
+    if (presenceUnsub) presenceUnsub();
+    presenceUnsub = onValue(allRef, (snap)=>{
+      onlineMap.clear();
+      const val = snap.val() || {};
+      for (const [k, v] of Object.entries(val)){
+        onlineMap.set(k, !!v?.online);
+      }
+      // 랭킹이 열려있다면 바로 갱신 느낌 주기 위해 다시 렌더 시도
+      if ($("rankBack").classList.contains("show")){
+        openRanking(); // 다시 그리기
+      }
+    });
+  }
+
+  async function syncLeaderboard(){
+    if (!db || !userName || !state) return;
     const dexCount = new Set(state.dexFound).size;
-
-    const entry = {
-      user,
+    // players 컬렉션에 내 기록 저장(이게 “온라인 랭킹” 데이터)
+    const playerRef = doc(db, "players", safeKey(userName));
+    await setDoc(playerRef, {
+      name: userName,
       totalEarned: state.totalEarned,
       dexCount,
       money: state.money,
       lastName: state.lastName || "",
-      updatedAt: Date.now(),
-    };
-
-    if (idx >= 0) board[idx] = entry;
-    else board.push(entry);
-
-    board.sort((a,b)=>{
-      if (b.totalEarned !== a.totalEarned) return b.totalEarned - a.totalEarned;
-      if (b.dexCount !== a.dexCount) return b.dexCount - a.dexCount;
-      return b.money - a.money;
-    });
-
-    localStorage.setItem(KEY_RANK, JSON.stringify(board.slice(0,100)));
+      updatedAt: serverTimestamp(),
+    }, { merge:true });
   }
 
-  function openRanking(){
-    const board = loadRankboard();
-    const body = $("rankBody");
-    body.innerHTML = "";
-    const top = board.slice(0, 25);
-    top.forEach((e, i)=>{
+  async function openRanking(){
+    if (!db){
+      $("rankHint").textContent = "온라인 랭킹이 비활성화됨 (firebaseConfig를 설정해야 함)";
+      $("rankBack").classList.add("show");
+      $("rankBody").innerHTML = "";
+      return;
+    }
+
+    $("rankHint").textContent = "불러오는 중…";
+    $("rankBody").innerHTML = "";
+
+    const q = query(
+      collection(db, "players"),
+      orderBy("totalEarned", "desc"),
+      orderBy("dexCount", "desc"),
+      orderBy("money", "desc"),
+      limit(30)
+    );
+
+    const snap = await getDocs(q);
+
+    let idx = 0;
+    snap.forEach((docu)=>{
+      idx++;
+      const p = docu.data();
+      const nameKey = safeKey(p.name || docu.id);
+      const isOn = onlineMap.get(nameKey) === true;
+
       const tr = document.createElement("tr");
       tr.innerHTML = `
-        <td>${i+1}</td>
-        <td><span class="badge">${escapeHtml(e.user)}</span></td>
-        <td>${fmt(e.totalEarned)}</td>
-        <td>${e.dexCount}</td>
-        <td>${fmt(e.money)}</td>
-        <td>${escapeHtml(e.lastName ? `"${e.lastName}"` : "-")}</td>
+        <td>${idx}</td>
+        <td><span class="dot ${isOn ? "on" : "off"}"></span></td>
+        <td><span class="badge">${escapeHtml(p.name || docu.id)}</span></td>
+        <td>${fmt(p.totalEarned || 0)}</td>
+        <td>${p.dexCount ?? 0}</td>
+        <td>${fmt(p.money || 0)}</td>
+        <td>${escapeHtml(p.lastName ? `"${p.lastName}"` : "-")}</td>
       `;
-      body.appendChild(tr);
+      $("rankBody").appendChild(tr);
     });
+
+    $("rankHint").textContent = "상위 30명만 표시됩니다.";
     $("rankBack").classList.add("show");
   }
+
   function closeRanking(){ $("rankBack").classList.remove("show"); }
 
-  // ===== 도감 UI =====
-  function openDex(){
-    renderDexGrid();
-    // 도감 열면 NEW 표시 제거(저장)
-    state.dexNew = [];
-    saveUserState();
-    $("dexBack").classList.add("show");
-  }
-  function closeDex(){ $("dexBack").classList.remove("show"); }
-
+  // ===== 도감 =====
   function renderDexGrid(){
     const grid = $("dexGrid");
     grid.innerHTML = "";
-
     const foundSet = new Set(state.dexFound);
     const newSet = new Set(state.dexNew);
 
@@ -544,19 +623,14 @@
 
       const meta = document.createElement("div");
       meta.className = "dexMeta";
-      meta.innerHTML = `
-        <span class="badge">${rarity.label}</span>
-        ${isNew ? `<span class="newTag">NEW</span>` : ``}
-      `;
+      meta.innerHTML = `<span class="badge">${rarity.label}</span>${isNew ? `<span class="newTag">NEW</span>` : ``}`;
 
       const btn = document.createElement("button");
       btn.className = "btn2 dexBtn";
       btn.textContent = isFound ? "열기" : "잠김";
       btn.disabled = !isFound;
-
       btn.addEventListener("click", ()=>{
-        // “열기”는 간단 정보 팝업(나중에 확장 가능)
-        alert(`[${rarity.label}] ${item.name}\n\n도감에서 이미 획득한 이름입니다.`);
+        alert(`[${rarity.label}] ${item.name}\n\n도감에서 획득한 이름입니다.`);
       });
 
       card.appendChild(nameLine);
@@ -565,18 +639,26 @@
       grid.appendChild(card);
     });
 
-    // 상단 카운트 갱신
     $("dexCount").textContent = String(foundSet.size);
     $("dexTotal").textContent = String(DEX_ALL.length);
   }
 
-  // ===== UI 렌더 =====
+  function openDex(){
+    renderDexGrid();
+    state.dexNew = []; // 도감 열면 NEW 제거
+    saveUserState();
+    // 랭킹에도 반영될 수 있으니 저장겸 동기화
+    syncLeaderboard().catch(()=>{});
+    $("dexBack").classList.add("show");
+  }
+  function closeDex(){ $("dexBack").classList.remove("show"); }
+
+  // ===== UI =====
   function renderRates(){
     $("ratesBox").innerHTML = RARITIES.map(r =>
       `- <span class="rare ${r.cls}">${r.label}</span>: ${r.chance}% · 5초당 +${r.income} · 판매가 ${r.sell}`
     ).join("<br/>");
   }
-
   function setCurrentDisplay(){
     if (!state.current){
       $("currentName").textContent = "없음";
@@ -591,7 +673,6 @@
     $("income").textContent = fmt(state.income);
     $("sellBtn").disabled = false;
   }
-
   function render(){
     $("money").textContent = fmt(state.money);
     $("income").textContent = fmt(state.income);
@@ -601,12 +682,10 @@
     $("dexCount").textContent = String(foundCount);
     $("dexTotal").textContent = String(DEX_ALL.length);
 
-    // draw 버튼은 돈/잠금 상태에 따라
     $("drawBtn").disabled = drawLock || (state.money < DRAW_COST);
   }
-
   function setLoggedInUI(on){
-    $("userLabel").textContent = on ? user : "없음";
+    $("userLabel").textContent = on ? userName : "없음";
     $("drawBtn").disabled = !on || drawLock || (state && state.money < DRAW_COST);
     $("sellBtn").disabled = !on || !state?.current;
     $("dexBtn").disabled = !on;
@@ -625,27 +704,26 @@
   function startIncomeLoop(){
     if (incomeTimer) clearInterval(incomeTimer);
     incomeTimer = setInterval(()=>{
-      if (!user || !state) return;
+      if (!userName || !state) return;
       if (state.income > 0){
         state.money += state.income;
         state.totalEarned += state.income;
         render();
         saveUserState();
+        syncLeaderboard().catch(()=>{});
       }
     }, INCOME_MS);
   }
-
   function startAutoLoop(){
     if (autoTimer) clearInterval(autoTimer);
     autoTimer = setInterval(()=>{
       if (!autoOn) return;
-      if (!user || !state) return;
+      if (!userName || !state) return;
       if (drawLock) return;
       if (state.money < DRAW_COST) return;
-      doDraw(); // 조건 통과하면 자동 뽑기
+      doDraw();
     }, AUTO_MS);
   }
-
   function setAuto(on){
     autoOn = on;
     $("autoBtn").textContent = `🖱️ 오토클릭: ${autoOn ? "ON" : "OFF"}`;
@@ -654,29 +732,29 @@
 
   // ===== 뽑기/판매 =====
   async function doDraw(){
-    if (!user || !state) return;
+    if (!userName || !state) return;
     if (drawLock) return;
     if (state.money < DRAW_COST) return;
 
-    drawLock = true;     // 연속 뽑기 방지
+    drawLock = true;
     render();
 
     state.money -= DRAW_COST;
     render();
     saveUserState();
+    syncLeaderboard().catch(()=>{});
 
     await drawAnimation();
 
     const rarity = pickRarity();
     const name = pickNameByRarity(rarity.key);
 
-    // 적용
     state.current = { name, rarityKey: rarity.key };
     state.income = rarity.income;
     state.lastName = name;
     state.lastRarityKey = rarity.key;
 
-    // 도감 체크: 새 이름이면 +10원 + NEW 표시 + 저장
+    // 도감 신규 보상 +10
     const foundSet = new Set(state.dexFound);
     if (!foundSet.has(name)){
       foundSet.add(name);
@@ -692,20 +770,15 @@
 
     setCurrentDisplay();
 
-    // 결과 출력 + 이펙트 분리
     $("spinText").textContent = "결과!";
     $("resultBig").innerHTML = `<span class="rare ${rarity.cls}">[${rarity.label}]</span> "${escapeHtml(name)}" · 5초당 +${fmt(rarity.income)}`;
 
     if (rarity.key === "MYTH"){
-      spawnSparks(44);
-      flash(2);
-      shake(2);
-      log(`🌌 신화 획득! [${rarity.label}] "${name}"`);
+      spawnSparks(44); flash(2); shake(2);
+      log(`🌌 신화 획득! "${name}"`);
     } else if (rarity.key === "LEGEND"){
-      spawnSparks(30);
-      flash(1);
-      shake(1);
-      log(`✨ 전설 획득! [${rarity.label}] "${name}"`);
+      spawnSparks(30); flash(1); shake(1);
+      log(`✨ 전설 획득! "${name}"`);
     } else {
       spawnSparks(16);
       log(`뽑기 성공! [${rarity.label}] "${name}"`);
@@ -713,8 +786,8 @@
 
     render();
     saveUserState();
+    syncLeaderboard().catch(()=>{});
 
-    // 잠금 해제(짧은 텀을 둬서 “연속 뽑기 느낌” 방지)
     setTimeout(()=>{
       drawLock = false;
       render();
@@ -722,7 +795,7 @@
   }
 
   function doSell(){
-    if (!user || !state?.current) return;
+    if (!userName || !state?.current) return;
     const rarity = RARITIES.find(r=>r.key===state.current.rarityKey);
     const gain = rarity?.sell ?? 0;
     const soldName = state.current.name;
@@ -735,14 +808,15 @@
     render();
     log(`판매 완료: "${soldName}" ( +${gain} )`);
     saveUserState();
+    syncLeaderboard().catch(()=>{});
   }
 
   function doReset(){
-    if (!user) return;
+    if (!userName) return;
     if (!confirm("정말 리셋할까요? (현재 유저 데이터가 초기화됨)")) return;
 
     state = defaultState();
-    localStorage.setItem(saveKeyFor(user), JSON.stringify(state));
+    localStorage.setItem(saveKeyFor(userName), JSON.stringify(state));
     drawLock = false;
     setAuto(false);
 
@@ -751,6 +825,7 @@
     renderDexGrid();
     log("리셋 완료!");
     saveUserState();
+    syncLeaderboard().catch(()=>{});
   }
 
   // ===== 로그인 =====
@@ -758,15 +833,13 @@
     return (s || "").trim().replace(/\s+/g," ").slice(0,16);
   }
 
-  function login(name){
+  async function login(name){
     const n = normalizeName(name);
-    if (!n){
-      alert("닉네임을 입력해줘!");
-      return;
-    }
-    user = n;
-    localStorage.setItem(KEY_USER, user);
-    state = loadUserState(user);
+    if (!n){ alert("닉네임을 입력해줘!"); return; }
+
+    userName = n;
+    localStorage.setItem(KEY_USER, userName);
+    state = loadUserState(userName);
 
     drawLock = false;
     setAuto(false);
@@ -774,19 +847,28 @@
     setCurrentDisplay();
     render();
     setLoggedInUI(true);
-    log(`로그인: ${user}`);
+    log(`로그인: ${userName}`);
 
     startIncomeLoop();
     startAutoLoop();
     saveUserState();
+
+    // 온라인 기능: presence + 랭킹 동기화
+    try{
+      await setPresenceOnline(userName);
+      watchPresence();
+      await syncLeaderboard();
+    }catch{
+      log("⚠️ 온라인 연결 실패: firebaseConfig / 설정(익명로그인/DB) 확인 필요");
+    }
   }
 
   function logout(){
-    if (!user) return;
+    if (!userName) return;
     saveUserState();
     setAuto(false);
 
-    user = null;
+    userName = null;
     state = null;
     localStorage.removeItem(KEY_USER);
 
@@ -818,7 +900,7 @@
   $("dexBack").addEventListener("click", (e)=>{ if (e.target.id === "dexBack") closeDex(); });
 
   $("autoBtn").addEventListener("click", ()=>{
-    if (!user) return;
+    if (!userName) return;
     setAuto(!autoOn);
   });
 
@@ -826,22 +908,17 @@
   renderRates();
   $("dexTotal").textContent = String(DEX_ALL.length);
 
+  await initFirebase();
+
   const remembered = localStorage.getItem(KEY_USER);
   if (remembered){
-    user = remembered;
-    state = loadUserState(user);
-    setCurrentDisplay();
-    render();
-    setLoggedInUI(true);
-    log(`자동 로그인: ${user}`);
-    startIncomeLoop();
-    startAutoLoop();
-    saveUserState();
+    // 자동 로그인
+    await login(remembered);
+    log(`자동 로그인: ${remembered}`);
   } else {
     setLoggedInUI(false);
     $("dexCount").textContent = "0";
   }
-})();
 </script>
 </body>
 </html>
